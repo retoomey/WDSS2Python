@@ -40,9 +40,6 @@ class arcpyNetcdfReader(netcdf_reader.netcdfReader):
         attrs = self.data.getAttributeNames(param1)
         return param2 in attrs
     
-    #def getAttributeNames(self, params):
-    #    return self.data.getAttributeNames(params)
-    
     def getAttributeValue(self, param1, param2):
         return self.data.getAttributeValue(param1, param2)
     

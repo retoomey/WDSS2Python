@@ -12,7 +12,10 @@ Basically, read NSSL netcdf data. Lots of boring stuff here.  The main points ar
 
 import arcpy
 import numpy
+
 from w2py import log
+from w2py.datatype import radialset
+from w2py.datatype import latlongrid
 
 missingData = -99900.0
 rangeFolded = -99901.0
@@ -89,9 +92,10 @@ def readRadialSet(data, output, isSparse):
             gw = int(data.getValue(gatewidthL, i)) 
                
             log.info("{0}, {1}, {2}, {3}, {4}".format(az,bw,aspace, ny,gw))
+            return radialset.RadialSet(M)
     else:
         log.error("Could not find DataType attribute in Netcdf file.  All NSSL netcdf data files should have this.")
-    
+    return None
 
 def readLatLonGrid(data, output, isSparse):
     """ Try to read in a NSSL LatLonGrid data format
@@ -114,28 +118,28 @@ def readLatLonGrid(data, output, isSparse):
     else:
         log.info("Data is not SPARSE")
         M = readArray2Dfloat(data, datatype, "Lat", "Lon")
-    
+            
+    return latlongrid.LatLonGrid(M, lat, lon, dlat, dlon)
+
+def writeArcPyRaster(llg):
     # Our lat/lon give the top right..arcgis wants in bottom left...
     # This map works for the USA CONUS, might need work for other areas of world
     # Move the lat to bottom left corner.
-    rows = M.shape[0]
-    print "Original {0} {1} {2}".format(lat, dlat, rows)
-    lat -= dlat*rows
+    M = llg.getValues()
+
+    dlat = llg.getCellSizeX()
+    dlon = llg.getCellSizeY()
+
+    ll = llg.getLowerLeft()
+    lowerLeft = arcpy.Point(ll[0], ll[1])
     
-    # valid if value > missingData
-    log.info("LOWER LEFT IS "+str(lat)+str(lon))
-    lowerLeft = arcpy.Point(lon, lat)
-    print "Point is set to "+str(lowerLeft)
     sr = arcpy.SpatialReference(4326) # WGS 1984
     myRaster = arcpy.NumPyArrayToRaster(M, lowerLeft, dlon, dlat, missingData)
     arcpy.DefineProjection_management(myRaster, sr)
+   
     myRaster.save("C:/Temp/testraster2")
     log.info("Wrote file...")
-            
-    return M
-    #sr = arcpy.SpatialReference("NAD 1983 UTM Zone 11N")
-    #arcpy.DefineProjection_management(myRaser, sr)
-
+    
 def readNetcdfArcpy(data, output): 
     """ Read in a netcdf data file, look for our attributes.
         Using Arcpy's built in netcdf ability.  This of course relies on the arcpy
@@ -143,19 +147,8 @@ def readNetcdfArcpy(data, output):
     """
     global finalOutput
     
-    #log.info("Trying to read netcdf "+datafile)
-    #try:
-    #    data  = arcpy.NetCDFFileProperties(datafile)
-    #except BaseException as e:
-    #    log.error("Couldn't read netcdf data from file "+datafile)
-    #    log.error("Exception {0}".format(e))
-    #    return
-    
     if data.haveAttribute("", "DataType"):
-    #attrs = data.getAttributeNames("")
-    #if "DataType" in attrs:
         
-     #   print attrs
         #dataType = attrs.get("DataType")
         dataType = data.getAttributeValue("", "DataType")
         log.info("DataType is "+dataType)
@@ -170,12 +163,10 @@ def readNetcdfArcpy(data, output):
         # We'll have to dispatch for RadialSet/LatLonGrid
         isSparse = "Sparse" in dataType
         if "RadialSet" in dataType:
-            readRadialSet(data, output, isSparse)
+            D = readRadialSet(data, output, isSparse)
         elif "LatLonGrid" in dataType:
-            M = readLatLonGrid(data, output, isSparse)
-           
-    #sr = arcpy.SpatialReference("NAD 1983 UTM Zone 11N")
-    #arcpy.DefineProjection_management(myRaser, sr)
+            D = readLatLonGrid(data, output, isSparse)
+            writeArcPyRaster(D)
         else:
             log.error("Can't process unknown DataType of "+dataType)
     else:
@@ -219,10 +210,6 @@ def readSparseArray2Dfloat(data, typename, rfield, cfield):
     backgroundValue = float(data.getAttributeValue(typename, "BackgroundValue"))
     log.info("Background value is "+str(backgroundValue))
     
-    # maybe getDimensionSize("pixel_x") work  fine here
-    #dims = data.getDimensionsByVariable("pixel_x")
-    #print "THE DIMENSION IS "+str(dims[0])
-    #num_pixels = data.getDimensionSize(dims[0])
     num_pixels = data.getDimensionSizeByVariable("pixel_x")
     log.info("Number of pixels is "+str(num_pixels))
     

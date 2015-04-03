@@ -9,7 +9,7 @@ more to learn about how to use it properly.
 @author: Robert Toomey
 '''
 
-class netcdfReader():
+class netcdfReader(object):
     def haveDimension(self, dim):
         return False
     def haveAttribute(self, param1, param2):
