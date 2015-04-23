@@ -1,10 +1,10 @@
-'''
+"""
 LatLonGrid
 
 Data object to hold our raster data type
 
-@author: Robert Toomey
-'''  
+@author: Robert Toomey (retoomey)
+""" 
  
 import datatype
 

@@ -1,4 +1,4 @@
-'''
+"""
 Netcdf utilities
 
 Basically, read NSSL netcdf data. Lots of boring stuff here.  The main points are:
@@ -7,20 +7,17 @@ Basically, read NSSL netcdf data. Lots of boring stuff here.  The main points ar
        OR reading a NSSL LatLonGrid Dataset
     2. Handling our custom sparse data storage
 
-@author: Robert Toomey
-'''
+@author: Robert Toomey (retoomey)
+"""
 
-import arcpy
+# We use numpy for matrix data storage
 import numpy
 
 from w2py import log
+from w2py.datatype import datatype as datatype
 from w2py.datatype import radialset
 from w2py.datatype import latlongrid
-
-missingData = -99900.0
-rangeFolded = -99901.0
-dataUnavailable = -99903.0
-    
+   
 def getDimension(data, dim):
     """ Read in first element of a netcdf dimension...if there's an exception return False.
         We have some optional dimension data, this makes the code cleaner
@@ -34,7 +31,8 @@ def getDimension(data, dim):
         pass
     return haveIt
 
-def readRadialSet(data, output, isSparse):
+# FIXME: Probably break up into classes eventually....
+def readRadialSet(data, isSparse):
     """ Try to read in a NSSL RadialSet data format.
     """
     # Get the radar elevation in degrees
@@ -97,11 +95,9 @@ def readRadialSet(data, output, isSparse):
         log.error("Could not find DataType attribute in Netcdf file.  All NSSL netcdf data files should have this.")
     return None
 
-def readLatLonGrid(data, output, isSparse):
+def readLatLonGrid(data, isSparse):
     """ Try to read in a NSSL LatLonGrid data format
-    """
-    global missingData
-    
+    """    
     log.debug("Entering readLatLonGrid")
     lat = float(data.getAttributeValue("", "Latitude"))
     lon = float(data.getAttributeValue("", "Longitude"))
@@ -120,33 +116,13 @@ def readLatLonGrid(data, output, isSparse):
         M = readArray2Dfloat(data, datatype, "Lat", "Lon")
             
     return latlongrid.LatLonGrid(M, lat, lon, dlat, dlon)
-
-def writeArcPyRaster(llg):
-    # Our lat/lon give the top right..arcgis wants in bottom left...
-    # This map works for the USA CONUS, might need work for other areas of world
-    # Move the lat to bottom left corner.
-    M = llg.getValues()
-
-    dlat = llg.getCellSizeX()
-    dlon = llg.getCellSizeY()
-
-    ll = llg.getLowerLeft()
-    lowerLeft = arcpy.Point(ll[0], ll[1])
     
-    sr = arcpy.SpatialReference(4326) # WGS 1984
-    myRaster = arcpy.NumPyArrayToRaster(M, lowerLeft, dlon, dlat, missingData)
-    arcpy.DefineProjection_management(myRaster, sr)
-   
-    myRaster.save("C:/Temp/testraster2")
-    log.info("Wrote file...")
-    
-def readNetcdfArcpy(data, output): 
+def readNetcdfFile(data): 
     """ Read in a netcdf data file, look for our attributes.
         Using Arcpy's built in netcdf ability.  This of course relies on the arcpy
         library.  Could wrap all the netcdf to allow plug-in of SciPy or another library
-    """
-    global finalOutput
-    
+    """  
+    D = None  
     if data.haveAttribute("", "DataType"):
         
         #dataType = attrs.get("DataType")
@@ -162,16 +138,17 @@ def readNetcdfArcpy(data, output):
         # First attempt, assume RadialSet...
         # We'll have to dispatch for RadialSet/LatLonGrid
         isSparse = "Sparse" in dataType
+        log.info("Trying to read file with DataType '{0}'".format(dataType))
         if "RadialSet" in dataType:
-            D = readRadialSet(data, output, isSparse)
+            D = readRadialSet(data, isSparse)
         elif "LatLonGrid" in dataType:
-            D = readLatLonGrid(data, output, isSparse)
-            writeArcPyRaster(D)
+            D = readLatLonGrid(data, isSparse)
         else:
             log.error("Can't process unknown DataType of "+dataType)
     else:
         log.error("No DataType attribute found in NetCDF file.")
-        
+    return D
+  
 def readArray2Dfloat(data, typename, rfield, cfield):
     """ Read in a non 2D array from our netcdf data and expand. 
         For the initial project, we will just handle sparse data.
@@ -183,30 +160,28 @@ def readArray2Dfloat(data, typename, rfield, cfield):
     # Humm..need this index I think.  Don't know how to use it properly
     #index = data.getDimensionIndex(typename)
     
-    actualData = rows*cols
     log.info("Filling in data values "+str(rows)+","+str(cols))
     M = numpy.empty((rows,cols), float)
     i = 0
     notify = 0
     totalCells = 0
-        
+    log.info("Type name comes in as "+typename)
+    values = data.getValueLookup(typename)
+    log.info("Type name of values is "+str(type(values)))
     for x in range(0,rows):
         for y in range(0, cols):
-            M[x,y] = data.getDimensionValue(typename, i)
+            M[x,y] = float(data.getValue2D(values, i, x, y))
             i = i + 1
             notify += 1
             totalCells += 1
-            if notify > 5000:
+            if notify > 10000:
                 log.info("Processed "+str(totalCells))
                 notify = 0
-    log.info( "actualData was read in as "+str(actualData))
     return M
 
 def readSparseArray2Dfloat(data, typename, rfield, cfield):  
     """ Read in a sparse 2D array from our netcdf data and expand. 
-    """
-    global missingData
-    
+    """    
     backgroundValue = float(data.getAttributeValue(typename, "BackgroundValue"))
     log.info("Background value is "+str(backgroundValue))
     
@@ -241,6 +216,8 @@ def readSparseArray2Dfloat(data, typename, rfield, cfield):
     notify = 0
     totalCells = 0
     pixelL = data.getValueLookup(typename)
+    log.info("Type name of pixelL is "+str(type(pixelL)))
+    log.info("GOOP IS "+str(pixelL))
     pixel_xL = data.getValueLookup("pixel_x")
     pixel_yL = data.getValueLookup("pixel_y")
     if haveCount:
@@ -260,12 +237,13 @@ def readSparseArray2Dfloat(data, typename, rfield, cfield):
             count = 1
             
         #if value != backgroundValue:
-        if value > missingData:
+        if value > datatype.missingData:
                 M[x, y] = value
+                actualData += 1
         totalCells += 1
         notify += 1
         
-        if notify > 5000:
+        if notify > 10000:
                 log.info("Processed "+str(totalCells))
                 notify = 0
         # Fill in line strip
@@ -277,7 +255,7 @@ def readSparseArray2Dfloat(data, typename, rfield, cfield):
             if value != backgroundValue:
                 M[x, y] = value
                 totalCells += 1
-            actualData += 1  
+                actualData += 1  
             #print x, y, count, "set to", value
-    log.info( "actualData was read in as "+str(actualData))
+    log.info( "Actual sample count read in was "+str(actualData))
     return M

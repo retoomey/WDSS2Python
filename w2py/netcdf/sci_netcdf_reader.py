@@ -1,11 +1,11 @@
-'''
+"""
 Scientific Python Netcdf Reader class file
 
 This reader uses the Scientific Python library to access a netcdf file.  This isn't installed in
 arcgis python by default, but this class is faster.
 
-@author: Robert Toomey
-'''   
+@author: Robert Toomey (retoomey)
+"""  
 import Scientific.IO.NetCDF
 from w2py import log
 
@@ -55,9 +55,10 @@ class sciNetcdfReader(netcdf_reader.netcdfReader):
     
     def getValueLookup(self, param1):
         # In Sci we use the actual variable object values 
-        print "getValueLookup "+str(param1)
         return self.data.variables.get(param1).getValue()
     
     def getValue(self, vlookup, index):
         return vlookup[index]
-        
+    
+    def getValue2D(self, vlookup, index, x, y):
+        return vlookup[x, y]  

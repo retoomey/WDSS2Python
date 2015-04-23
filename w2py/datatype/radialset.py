@@ -1,10 +1,10 @@
-'''
+"""
 RadialSet
 
 Data object to hold our polar radar set data
 
-@author: Robert Toomey
-'''  
+@author: Robert Toomey (retoomey)
+"""  
  
 import datatype
 

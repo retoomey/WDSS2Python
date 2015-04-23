@@ -1,10 +1,10 @@
-'''
+"""
 Arcpy Netcdf Reader class file
 
 This reader uses the arcpy NetCDFFileProperties to access a netcdf file
 
-@author: Robert Toomey
-'''   
+@author: Robert Toomey (retoomey)
+""" 
 
 import arcpy
 from w2py import log 
@@ -58,5 +58,8 @@ class arcpyNetcdfReader(netcdf_reader.netcdfReader):
     # Slower than a snail in arcgis..they wrap an object every call.
     # really? lol
     def getValue(self, vlookup, index):
+        return self.data.getDimensionValue(vlookup, index)
+    
+    def getValue2D(self, vlookup, index, x, y):
         return self.data.getDimensionValue(vlookup, index)
         
