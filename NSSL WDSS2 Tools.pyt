@@ -5,8 +5,9 @@
 # March/April 2015
 
 import arcpy, sys, os
-import w2py.w2, w2py.log
-           
+import w2py.w2, w2py.log, w2py.resource
+import w2py.resource as w2res
+    
 class Toolbox(object):
     def __init__(self):
         """ Initialize a ArcGIS Python Toolbox """
@@ -26,10 +27,12 @@ def reloadModules():
     # We reload our worker script, because refreshing the ArcGIS toolbox doesn't
     # refresh any imported scripts.  And for speed testing in ArcGIS I want it to refresh
     # http://resources.arcgis.com/en/help/main/10.1/index.html#//001500000038000000
+    # In a final non-changing release, could remove this code
     reload(w2py.w2)
     reload(w2py.log)
+    reload(w2py.resource)
     reload(w2py.netcdf.netcdf_util) 
-    
+
 def netcdfReaderChoice():
     """ Get the netcdf reader choice drop down menu parameter"""
     use_netcdf = arcpy.Parameter(
@@ -56,36 +59,55 @@ def netcdfFileChoice(multi):
         parameterType="Required",
         multiValue=multi,
         direction="Input")
-    in_features.filter.list = ["netcdf", "nc"]
+    in_features.filter.list = w2py.resource.getHandledFileTypes()
+    
+    # Some defaults using provided data files for testing.  User can change these
+    if not multi:
+        in_features.value = w2py.resource.getDataFilename("LatLonGrid20150401-204712.netcdf")
+
     return in_features
 
-def folderChoice(isOutput, aName):
+def folderChoice(isOutput, aName, aLabel, required=True):
     """ Get input or output folder """
     if isOutput:
-        aLabel = "Output folder"
         aType = "Output"
     else:
-        aLabel = "Input folder"
         aType = "Input"
-        
+    if required:
+        r = "Required"
+    else:
+        r = "Optional"
+          
     folder = arcpy.Parameter(
         displayName=aLabel,
         name=aName,
         datatype="DEFolder",
-        parameterType="Required",
+        parameterType=r,
         direction=aType) 
     
     return folder
 
-def symbologyLayer():
-    param0 = arcpy.Parameter(
-        displayName="Input Feature Set",
-        name="in_feature_set",
-        datatype="GPFeatureRecordSetLayer",
-        parameterType="Required",
+def symbologyChoice():
+    s = arcpy.Parameter(
+        displayName="LatLonGrid symbology layer",
+        name="in_lLG_symbology",
+        datatype="DELayer",
+        parameterType="Optional",
         direction="Input")
-    param0.value="C:/PData/cloudlayer.lyr"
-    return param0
+    
+    # Default should be the tool file location...
+    s.value = w2py.resource.getSymbologyLayer()
+    return s
+
+def generateHtmlChoice(flag):
+    p = arcpy.Parameter(
+        displayName="Generate HTML pages",
+        name="make_html",
+        datatype="Boolean",
+        parameterType="Optional",
+        direction="Input")
+    p.value=flag
+    return p
 
 #########################################################################################
 ### Define all of our tools:
@@ -96,7 +118,12 @@ class ImportW2NetcdfRaster(object):
         self.label       = "W2 Netcdf to Raster"
         self.description = "Converts a National Severe Storms Laboratory data file, \
         in WDSSII Netcdf format to a raster dataset.  Current supports the NSSL LatLonGrid datatype."
-           
+        
+        # Define a lookup map for our parameters.  This should match the 
+        # creation of parameters in getParameterInfo.  We do this to avoid keeping
+        # track of the index value changes (which prevents bugs).
+        self.l = {"file":0, "out":1, "net":2, "html":3, "hFolder":4, "lyr":5 ,"dev":6}
+
     def getParameterInfo(self):
         """ Define toolbox parameters that will show in GUI """
 
@@ -107,7 +134,7 @@ class ImportW2NetcdfRaster(object):
             datatype="DERasterDataset",
             parameterType="Required",
             direction="Output")
-        out_features.symbology="C:/PData/cloudcover.lyr"
+        #out_features.symbology="C:/PData/cloudcover.lyr"
         
         # One one that is derived so that results will autoload
         # Not sure why I'm having to duplicate this.  The ArcGIS help is
@@ -119,17 +146,26 @@ class ImportW2NetcdfRaster(object):
             datatype="DERasterDataset",
             parameterType="Derived",
             direction="Output")
+        htmlFolder = folderChoice(False, "html_output", "Output HTML/PNG Folder", False)
+        htmlFolder.value = w2py.resource.getHTMLGenDir()
         
-        p = [netcdfFileChoice(False), out_features, netcdfReaderChoice(), out_d]
+        # Create parameters. Match the list order to our self.l dictionary above
+        p = [netcdfFileChoice(False), out_features, netcdfReaderChoice(),\
+            generateHtmlChoice(False), htmlFolder, symbologyChoice(), out_d]
         return p
 
     def isLicensed(self): #optional
         return True
 
-    def updateParameters(self, parameters): #optional   
+    def updateParameters(self, p): #optional 
+        # Only require the html folder and settings if the Generate HTML button is on
+        htmlOn = p[self.l["html"]].value
+        p[self.l["lyr"]].enabled = htmlOn       # Symbology layer
+        p[self.l["hFolder"]].enabled = htmlOn   # html output folder
         return
 
-    def updateMessages(self, parameters): #optional
+    def updateMessages(self, p): #optional
+
         return
 
     def execute(self, p, messages):
@@ -138,15 +174,18 @@ class ImportW2NetcdfRaster(object):
         w2py.log.useArcLogging(messages, arcpy)
         
         # Read a single file using our library
-        inDataFile = p[0].valueAsText
-        outLocation = p[1].valueAsText
-        netcdfType = p[2].valueAsText
-        output = w2py.w2.readSingleFileToRaster(inDataFile, outLocation, netcdfType)
+        inDataFile = p[self.l["file"]].valueAsText
+        outLocation = p[self.l["out"]].valueAsText
+        netcdfType = p[self.l["net"]].valueAsText
+
+        makeHtml = p[self.l["html"]].value
+        symbols = p[self.l["lyr"]].valueAsText
+        hOut = p[self.l["hFolder"]].valueAsText
         
+        w2py.log.info("HTML is set to "+str(makeHtml))
+        output = w2py.w2.readSingleFileToRaster(inDataFile, outLocation, netcdfType, makeHtml, symbols, hOut)
         # Assign output and we're done
-        #p[1].symbology = "C:/PData/cloudcover.lyr"
-        #p[3].symbology = "C:/PData/cloudcover.lyr"
-        p[3].value = output
+        p[5].value = output
         
         
 class MImportW2NetcdfRaster(object):
@@ -155,18 +194,35 @@ class MImportW2NetcdfRaster(object):
         self.label       = "W2 Netcdf to Raster (multiple)"
         self.description = "Converts multiple National Severe Storms Laboratory data file(s), \
         in WDSSII Netcdf format to raster dataset(s).  Current supports the NSSL LatLonGrid datatype."
+        
+        # Define a lookup map for our parameters.  This should match the 
+        # creation of parameters in getParameterInfo.  We do this to avoid keeping
+        # track of the index value changes (which prevents bugs).
+        self.l = {"Input":0, "Output":1, "net":2, "html":3, "hFolder":4, "lyr":5}
            
     def getParameterInfo(self):
         
-        p = [folderChoice(False, "Input"), folderChoice(True, "Output"), \
-                      netcdfReaderChoice()]
-        self.pdict = {"INPUT": p[0], "OUTPUT": p[1], "NETCDF": p[2]}
+        # The input base directory for data files
+        in_dir = folderChoice(False, "input_dir", "Root input directory")
+        in_dir.value = w2res.getDataDir()
+        out_dir = folderChoice(False, "output_dir", "Root HTML output directory")
+        out_dir.value = w2res.getHTMLGenDir()
+        
+        htmlFolder = folderChoice(False, "html_output", "Output HTML/PNG Folder", False)
+        htmlFolder.value = w2py.resource.getHTMLGenDir()
+        # Match this order with self.l in __init__
+        p = [in_dir, out_dir, netcdfReaderChoice(),  \
+             generateHtmlChoice(False), htmlFolder, symbologyChoice()]
         return p
 
     def isLicensed(self): #optional
         return True
 
-    def updateParameters(self, parameters): #optional
+    def updateParameters(self, p): #optional
+        # Only require the html folder and settings if the Generate HTML button is on
+        htmlOn = p[self.l["html"]].value
+        p[self.l["lyr"]].enabled = htmlOn       # Symbology layer
+        p[self.l["hFolder"]].enabled = htmlOn   # html output folder
         return
 
     def updateMessages(self, parameters): #optional
@@ -178,9 +234,9 @@ class MImportW2NetcdfRaster(object):
         w2py.log.useArcLogging(messages, arcpy)
         
         # Read a directory tree using our library
-        inFolder = p[0].valueAsText
-        outFolder = p[1].valueAsText
-        netcdfType = p[2].valueAsText
+        inFolder = p[self.l["Input"]].valueAsText
+        outFolder = p[self.l["Output"]].valueAsText
+        netcdfType = p[self.l["net"]].valueAsText
         w2py.w2.readMultipleFiles(inFolder, outFolder, netcdfType)
         #p[2].value = output
 

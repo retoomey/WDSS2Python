@@ -11,7 +11,7 @@ Basically, read NSSL netcdf data. Lots of boring stuff here.  The main points ar
 """
 
 # We use numpy for matrix data storage
-import numpy
+import numpy, datetime
 
 from w2py import log
 from w2py.datatype import datatype as datatype
@@ -90,7 +90,10 @@ def readRadialSet(data, isSparse):
             gw = int(data.getValue(gatewidthL, i)) 
                
             log.info("{0}, {1}, {2}, {3}, {4}".format(az,bw,aspace, ny,gw))
-            return radialset.RadialSet(M)
+        
+        rs = radialset.RadialSet(M)
+        rs.setTypeName(datatype)   
+        return rs
     else:
         log.error("Could not find DataType attribute in Netcdf file.  All NSSL netcdf data files should have this.")
     return None
@@ -114,8 +117,10 @@ def readLatLonGrid(data, isSparse):
     else:
         log.info("Data is not SPARSE")
         M = readArray2Dfloat(data, datatype, "Lat", "Lon")
-            
-    return latlongrid.LatLonGrid(M, lat, lon, dlat, dlon)
+    
+    llg = latlongrid.LatLonGrid(M, lat, lon, dlat, dlon)
+    llg.setTypeName(datatype)
+    return llg
     
 def readNetcdfFile(data): 
     """ Read in a netcdf data file, look for our attributes.
@@ -145,6 +150,18 @@ def readNetcdfFile(data):
             D = readLatLonGrid(data, isSparse)
         else:
             log.error("Can't process unknown DataType of "+dataType)
+            
+        # Try to get the time from the data file...
+        if data.haveAttribute("", "Time"):
+            t1 = data.getAttributeValue("", "Time")
+            # Python wants seconds, so ignore fractional time
+            #t2 = data.getAttributeValue("", "FractionalTime")
+            theTime = datetime.date.fromtimestamp(long(t1))
+        else:
+            theTime = datetime.datetime.now()   
+            # We don't care, just use current date...           
+        D.setTime(theTime)
+        
     else:
         log.error("No DataType attribute found in NetCDF file.")
     return D
@@ -216,8 +233,6 @@ def readSparseArray2Dfloat(data, typename, rfield, cfield):
     notify = 0
     totalCells = 0
     pixelL = data.getValueLookup(typename)
-    log.info("Type name of pixelL is "+str(type(pixelL)))
-    log.info("GOOP IS "+str(pixelL))
     pixel_xL = data.getValueLookup("pixel_x")
     pixel_yL = data.getValueLookup("pixel_y")
     if haveCount:

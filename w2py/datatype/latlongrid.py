@@ -18,12 +18,13 @@ class LatLonGrid(datatype.DataType):
             dlat: Lat cell size in degrees
             dlon: Lon cell size in degrees
         """
+        datatype.DataType.__init__(self)
         self.matrix = M
         self.lat = lat
         self.lon = lon
         self.dlat = dlat
         self.dlon = dlon
-    
+        
     def getUpperLeft(self):
         return [self.lon, self.lat]
     
@@ -47,3 +48,11 @@ class LatLonGrid(datatype.DataType):
     
     def getCellSize(self):
         return [self.dlon,self.dlat]
+    
+    def getImageWidth(self):
+        """ Return the image width for this data type (used in HTML and PNG generation) """
+        return self.matrix.shape[1]
+    
+    def getImageHeight(self):
+        """ Return the image height for this data type (used in HTML and PNG generation) """
+        return self.matrix.shape[0]

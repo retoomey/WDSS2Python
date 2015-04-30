@@ -3,13 +3,14 @@
 #
 # Read custom netcdf data files into ArcGIS using an ArcGIS toolbox python script
 # Design the script to run from ArcGIS, or standalone using sys.args.
+# For now, do lots of work here.  Some of this will migrate/separate later
 
-import arcpy, os
+import arcpy, os, shutil
 import log
+import w2py.resource as w2res
 from netcdf import netcdf_util
 from w2py.datatype import datatype as datatype
 from w2py.datatype.latlongrid import LatLonGrid
-import shutil
 
 def getReader(datafile, net):  
     """ Get the netcdf reader we will use to injest our data"""
@@ -29,28 +30,18 @@ def getReader(datafile, net):
         # Using ArcGIS NetCD.  So slow..so very, very slow
         return arcpy_netcdf_reader.arcpyNetcdfReader(datafile)
 
-def generateHTMLPage(llg, myRaster, outputlocation):  
-    
-    M = llg.getValues()
+def generatePNGFile(D, featureLocation, outHTMLFolder, outputPNGfile, asymboll=""):  
+    """ Given one of our DataType objects, and a arcgis Feature file, output the feature as a PNG.
+        Return the full path to new image file"""
+        
     # For our HTML generation, we will use a temporary .mxd file to do the imaging work...
     # MapDocument doesn't allow creating a new blank document, so we 'copy' our 'blank.mxd' to 
-    # a temp scratch file and use that...
-    # FIXME: pick some safe path and filename...
-    blanktemplate = "C:/Temp22/blank.mxd"
-    work = "C:/Temp22/working.mxd"
-    workpng = "C:/Temp22/testing1.png"
-    
-    asymboll = "C:/PData/cloudcover.lyr"
-    tempLyr = "C:/Temp22/goopers.lyr"
-    
-    usamapl = "C:/Temp22/usa.lyr"
-    tempLyr2 = "C:/Temp22/goopers2.lyr"
+    # a temp file and use that
+    blanktemplate = w2res.getArcgisFilename("blank.mxd")
+    work = w2res.getTempFile(outHTMLFolder, "working.mxd")
+    workpng = w2res.getTempFile(outHTMLFolder, outputPNGfile)
     
     # Clean up any old working files
-    if os.path.isfile(tempLyr):
-        os.remove(tempLyr)
-    if os.path.isfile(tempLyr2):
-        os.remove(tempLyr2)
     if os.path.isfile(work):
         os.remove(work)
     if os.path.isfile(workpng):
@@ -61,37 +52,101 @@ def generateHTMLPage(llg, myRaster, outputlocation):
     mxd = arcpy.mapping.MapDocument(work)
     dataFrame = arcpy.mapping.ListDataFrames(mxd)[0]
     
-    # Add a map layer to the dataframe...
-    shutil.copyfile(usamapl, tempLyr2)
-    lyr2 = arcpy.mapping.Layer(tempLyr2)
-    arcpy.mapping.AddLayer(dataFrame, lyr2, "TOP")
+    # Add a map layer to the dataframe...FIXME: make optional or choosable
+    # FIXME: check for existance
+    usashp = w2res.getArcgisFilename("usa.shp")
+    usaSymLayer = w2res.getArcgisFilename("usa.lyr")
+    log.info("USA LAYER FILE IS "+str(usaSymLayer))
+    usaLayer = arcpy.mapping.Layer(usashp)
+    arcpy.ApplySymbologyFromLayer_management(usaLayer, usaSymLayer)
+    arcpy.mapping.AddLayer(dataFrame, usaLayer, "TOP")
+    ext = usaLayer.getExtent()
     
-    # From the raster file, create a new layer...
-    arcpy.MakeRasterLayer_management(outputlocation, "rdlayer")
-    arcpy.SaveToLayerFile_management("rdlayer", tempLyr)
-    lyr = arcpy.mapping.Layer(tempLyr)
-       
-    #Try to apply symbology
-    arcpy.ApplySymbologyFromLayer_management(lyr, asymboll)
-    arcpy.mapping.AddLayer(dataFrame, lyr, "TOP")
+    # Add our Raster image to the dataframe, if we have one
+    if D.haveRaster() == True:
+        iwidth = D.getImageWidth()
+        iheight = D.getImageHeight()
     
-    # Set the data frame extent to match the LatLonGrid exactly.  This way the PNG is just the area
-    # of our raster.  If we add a USA map, maybe we should expand this some....
-    ext = myRaster.extent
+        rasterLyr = arcpy.mapping.Layer(featureLocation)
+
+        # Apply symbology if we have it...
+        if asymboll:
+            log.info("SYMBOLOGY LAYER FILE IS "+str(asymboll))
+            arcpy.ApplySymbologyFromLayer_management(rasterLyr, asymboll)
+        else:
+            log.info("No symbology layer given, leaving default symbology in PNG") 
+        
+        arcpy.mapping.AddLayer(dataFrame, rasterLyr, "TOP")
+        ext = rasterLyr.getExtent()
+           
+    else:
+        # Output just a map for this file...
+        iwidth = 500
+        iheight = 200
+    
+    # Set the extent of the final output png.  We'll zoom to the  raster layer if possible,
+    # or the map layer if possible
     dataFrame.extent = ext
     
-    log.info("Extent is "+str(ext))
+    # Save the temp map and export to PNG  
     mxd.save()
+    arcpy.mapping.ExportToPNG(mxd, workpng, dataFrame, iwidth, iheight, 300)
+    log.info("Wrote png of arcgis map to "+workpng)
     
-    res = 300
+    # Clean up layers from memory and temp files
+    del mxd, usaLayer
+    if asymboll:
+        del rasterLyr
+    if os.path.isfile(work):
+        os.remove(work)
+    
+    return workpng
 
-    arcpy.mapping.ExportToPNG(mxd, workpng, dataFrame, M.shape[1], M.shape[0], res)
- 
-    #mxd.saveACopy("adfsadfasdf")
-    del mxd, lyr, lyr2
-         
+def generateHTMLFile(D, outHTMLFolder, outputHTMLFile, inputPNGFile, indexLocation=""):  
+    """ Given one of our DataType objects, image file and html location, generate one HTML page """
+    workhtml = w2res.getTempFile(outHTMLFolder, outputHTMLFile)
+    percentWidth = 90
+    
+    # Guess we 'could' use something like beautiful, but our html should be pretty simple,
+    # it's the actual gathering of stats, etc. that was the fun part, lol
+    # We'll keep the tags separate for clarity for now
+    f = open(workhtml, "w")
+    
+    timestamp = D.getTime().strftime("%A, %d. %B %Y %I:%M%p")
+    tName = D.getTypeName()
+    fileName = D.getFileName()
+    
+    # Document header
+    f.write("<!DOCTYPE html>\n")
+    f.write("<!Generated by w2py library https://github.com/retoomey/wdss2python>\n")
+    f.write("<!Robert Toomey retoomey@gmail.com>\n")
+    f.write("<html>\n")
+    f.write("<head>\n")
+    f.write("<meta charset=\"UTF-8\">\n")
+    f.write("<title>{0}-{1}</title>\n".format(tName, timestamp))
+    f.write("</head>\n")
+    f.write("<body>\n")
+    
+    # Return to table of contents if we have one
+    if indexLocation:
+        f.write("<a href=\"{0}\">Return to index</a><br>\n".format(indexLocation))
+        
+    f.write("Generated image output for file <b>\"{0}\"</b></br>\n".format(fileName))
+    f.write("The type of data for this file is: <b>\"{0}\"</b></br>\n".format(tName))
+    f.write("Timestamp of data is: <b>{0}</b><br>\n".format(D.getTime().strftime("%A, %d. %B %Y %I:%M%p")))
+    
+    # Insert the PNG file into the page
+    f.write("<img src=\"{0}\" width=\"{1}%\" alt=\"data image\">\n".format(inputPNGFile, percentWidth))
+    
+    # Footer
+    f.write("</body>\n")
+    f.write("</html>\n")
+    f.close()
+    
+
 def writeArcPyRaster(llg, outputlocation):
-    """ Write a arc python Raster given  LatLonGrid datatype """ 
+    """ Write a arc python Raster given  LatLonGrid datatype.  For now,
+        just keep this code here.  Eventually will create a separate arcpy library """ 
     # Our lat/lon give the top right..arcgis wants in bottom left...
     # This map works for the USA CONUS, might need work for other areas of world
     # Move the lat to bottom left corner.     
@@ -111,41 +166,56 @@ def writeArcPyRaster(llg, outputlocation):
     log.info("Attempting to write raster to "+outputlocation)
     #When using raster.save your choices are Geodatabase Raster, Esri Grid, GeoTiff and ERDAS imagine format.
     myRaster.save(outputlocation)
-    log.info("Wrote raster to "+outputlocation)
-    
-    generateHTMLPage(llg, myRaster, outputlocation)
-    
+    llg.setRaster(myRaster)
+        
     return myRaster
 
-def readSingleFileToRaster(datafile, output, net):
+def readSingleFileToRaster(datafile, output, net, htmlOn=False, symbols=None, hFolder=None):
     """ Given a file location and an output location, 
         try to read it using the netcdf reader
         Everything here wraps through our interface so it will work 
         with ArcToolbox or with console """
     
     log.setDefaultProgress("Reading a single file...")
-    log.info("Datafile is "+datafile)
-    log.info("Output is "+output)
-    log.info("Netcdf reader is "+net)
     
     # Get the reader from our netcdf module and read the file
     # into our 'datatype' class.  Then output to arcpy feature
     reader = getReader(datafile, net)
     D = netcdf_util.readNetcdfFile(reader)
+    if D != None:
+        D.setFileName(datafile)
     
     # Current only LatLonGrids can output to raster...
     # Most likely RadialSets will become polygon shapefiles or tables...etc...
     # We will probably want a table injest function for radial sets..
+    
     newFeature = None
     if isinstance(D, LatLonGrid):
+        # Create a new Raster feature for our LatLonGrid datatype
         newFeature = writeArcPyRaster(D, output)
+        
+        # Generate an HTML page for this Datatype, including our PNG file
+        if htmlOn:
+            log.info("Generating PNG and HTML files to "+hFolder)
+            
+            # Get a generated output file names for HTML and PNG
+            baseName = w2res.getBaseMulti(datafile)
+            pngName = baseName+".png"
+            htmlName = baseName+".html"
+            
+            # Generate an PNG file page for this Raster
+            generatePNGFile(D, output, hFolder, pngName, symbols)
+            generateHTMLFile(D, hFolder, htmlName, pngName)
+        
     else:
-        log.info(">>>>>>>>>>>>>>>Skipping raster generation for non LatLonGrid type.")
+        log.info(">>>>>>>>>>>>>>>Skipping generation for non LatLonGrid type.")
+        log.info("The type is "+str(type(D)))
     
+
     log.resetProgress()
     return newFeature
           
-def readMultipleFiles(inFolder, outFolder, net):    
+def readMultipleFiles(inFolder, outFolder, net, htmlOn=False):    
     """ Given a input folder and output folder, try to read
         every possible file in the tree, creating an equal converted
         file """
@@ -170,17 +240,11 @@ def readMultipleFiles(inFolder, outFolder, net):
             try:
                 reader = getReader(f, net)
                 D = netcdf_util.readNetcdfFile(reader)
+                if D != None:
+                    D.setFileName(f)
                 log.info("Read file "+f)
             except:
                 log.error("Got exception reading "+f)
                   
     log.resetProgress()
-
-def readFromCommandLine(parameters, messages):
-    datafile = 'C:\GIS-GRADSCHOOL\GIS540-SP2015\Project\polartest.netcdf'
-    datafile = 'C:\GIS-GRADSCHOOL\GIS540-SP2015\Project\LatLonGrid20150401-204712.netcdf'
-    output = 'C:\GIS-GRADSCHOOL\GIS540-SP2015\Project\polartestout'
-    
-    reader = getReader(datafile)
-    netcdf_util.readNetcdfFile(reader, output)
     

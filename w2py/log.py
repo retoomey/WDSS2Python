@@ -11,7 +11,7 @@ a custom algorithm might be designed to run with or without arcpy access
 Designed to be binary: text Or arcgis.  Adding a third type of logging 
 would require a refactor or making log into a class
 
-@author: Robert Toomey
+@author: Robert Toomey (retoomey)
 '''
 
 import sys
