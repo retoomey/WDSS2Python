@@ -16,13 +16,24 @@ class arcpyNetcdfReader(netcdf_reader.netcdfReader):
     def __init__(self, datafile):
         """ Open NetCDF file with arcpy library
         """
+        super(type(self), self).__init__()
         log.info("Trying to read netcdf "+datafile)
         try:
+            # We have to uncompress the file to a temporary file
+            # This will be deleted on __del__ cleanup
+            datafile = netcdf_reader.netcdfReader.uncompressTempFile(self, datafile)                           
             self.data  = arcpy.NetCDFFileProperties(datafile)
         except BaseException as e:
             log.error("Couldn't read netcdf data from file "+datafile)
             log.error("Exception {0}".format(e))
     
+        def __del__(self):
+            # Close our file before calling superclass, since superclass might delete it
+            if self.data:
+                self.data.close()
+            super(type(self), self).__del__()
+
+            
     def haveDimension(self, dim):
         """ Read in first element of a netcdf dimension...if there's an exception return False.
         We have some optional dimension data, this makes the code cleaner

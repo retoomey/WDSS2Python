@@ -6,6 +6,7 @@
 
 import arcpy, sys, os
 import w2py.w2, w2py.log, w2py.resource
+import w2py.log as log
 import w2py.resource as w2res
     
 class Toolbox(object):
@@ -182,7 +183,7 @@ class ImportW2NetcdfRaster(object):
         symbols = p[self.l["lyr"]].valueAsText
         hOut = p[self.l["hFolder"]].valueAsText
         
-        w2py.log.info("HTML is set to "+str(makeHtml))
+        #w2py.log.info("HTML is set to "+str(makeHtml))
         output = w2py.w2.readSingleFileToRaster(inDataFile, outLocation, netcdfType, makeHtml, symbols, hOut)
         # Assign output and we're done
         p[5].value = output
@@ -205,9 +206,17 @@ class MImportW2NetcdfRaster(object):
         # The input base directory for data files
         in_dir = folderChoice(False, "input_dir", "Root input directory")
         in_dir.value = w2res.getDataDir()
-        out_dir = folderChoice(False, "output_dir", "Root HTML output directory")
-        out_dir.value = w2res.getHTMLGenDir()
         
+        #out_dir = folderChoice(False, "output_dir", "Root feature output directory")
+        #out_dir.value = w2res.getHTMLGenDir()
+        out_dir = arcpy.Parameter(
+            displayName="Output Geodatabase folder",
+            name="out_d",
+            datatype="DEFolder",
+            parameterType="Required",
+            direction="Input")
+        out_dir.value = w2py.resource.getHTMLGenDir()
+
         htmlFolder = folderChoice(False, "html_output", "Output HTML/PNG Folder", False)
         htmlFolder.value = w2py.resource.getHTMLGenDir()
         # Match this order with self.l in __init__
@@ -237,7 +246,10 @@ class MImportW2NetcdfRaster(object):
         inFolder = p[self.l["Input"]].valueAsText
         outFolder = p[self.l["Output"]].valueAsText
         netcdfType = p[self.l["net"]].valueAsText
-        w2py.w2.readMultipleFiles(inFolder, outFolder, netcdfType)
-        #p[2].value = output
+        makeHtml = p[self.l["html"]].value
+        symbols = p[self.l["lyr"]].valueAsText
+        hOut = p[self.l["hFolder"]].valueAsText
+        
+        w2py.w2.readMultipleFiles(inFolder, outFolder, netcdfType, makeHtml, symbols, hOut)
 
         

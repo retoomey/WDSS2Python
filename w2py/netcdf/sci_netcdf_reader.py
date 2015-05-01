@@ -8,16 +8,20 @@ arcgis python by default, but this class is faster.
 """  
 import Scientific.IO.NetCDF
 from w2py import log
-
 import netcdf_reader
 
 class sciNetcdfReader(netcdf_reader.netcdfReader):
     
-    def __init__(self, datafile):
+    def __init__(self, datafile):           
         """ Open NetCDF file with Scientific Python library
         """
+        super(type(self), self).__init__()
+        self.data = None
         log.info("Trying to read netcdf "+datafile)
         try:
+            # We have to uncompress the file to a temporary file
+            # This will be deleted on __del__ cleanup
+            datafile = super(type(self), self).uncompressTempFile(datafile)
             self.data = Scientific.IO.NetCDF.NetCDFFile(datafile, "r")
         except BaseException as e:
             log.error("Couldn't read netcdf data from file "+datafile)
@@ -32,6 +36,12 @@ class sciNetcdfReader(netcdf_reader.netcdfReader):
         else:
             return False
     
+    def __del__(self):
+        # Close our file before calling superclass, since superclass might delete it
+        if self.data:
+            self.data.close()
+        super(type(self), self).__del__()
+            
     #def getAttributeNames(self, params):
     #    print self.data.attributes
     #    print dir(self.data)
@@ -51,7 +61,12 @@ class sciNetcdfReader(netcdf_reader.netcdfReader):
     def getDimensionSizeByVariable(self, param1):
         v = self.data.variables.get(param1)
         key = v.dimensions[0]
-        return int(self.data.dimensions[key]) 
+        value = self.data.dimensions[key]
+        # The 'unlimited' 0 length pixel bug in some old data files
+        if value is None: 
+            return 0
+        else:
+            return int(value)  
     
     def getValueLookup(self, param1):
         # In Sci we use the actual variable object values 

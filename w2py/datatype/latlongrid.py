@@ -24,7 +24,12 @@ class LatLonGrid(datatype.DataType):
         self.lon = lon
         self.dlat = dlat
         self.dlon = dlon
-        
+    
+    def __del__(self):
+        """ Delete the numpy array to save memory.   """
+        datatype.DataType.__del__(self)
+        del self.matrix
+           
     def getUpperLeft(self):
         return [self.lon, self.lat]
     

@@ -143,7 +143,6 @@ def readNetcdfFile(data):
         # First attempt, assume RadialSet...
         # We'll have to dispatch for RadialSet/LatLonGrid
         isSparse = "Sparse" in dataType
-        log.info("Trying to read file with DataType '{0}'".format(dataType))
         if "RadialSet" in dataType:
             D = readRadialSet(data, isSparse)
         elif "LatLonGrid" in dataType:
@@ -153,13 +152,18 @@ def readNetcdfFile(data):
             
         # Try to get the time from the data file...
         if data.haveAttribute("", "Time"):
-            t1 = data.getAttributeValue("", "Time")
-            # Python wants seconds, so ignore fractional time
-            #t2 = data.getAttributeValue("", "FractionalTime")
-            theTime = datetime.date.fromtimestamp(long(t1))
+            t1 = long(data.getAttributeValue("", "Time"))
+            #t2 = float(0.0)
+            #if data.haveAttribute("", "FractionalTime"):
+            #   t2 = float(data.getAttributeValue("", "FractionalTime"))
+            #log.info("************************T1 is "+str(t1))
+            #log.info("************************T2 is "+str(t2))
+            #t1 = t1 + long(1000.0*t2)
+            theTime = datetime.datetime.fromtimestamp(t1).strftime('%Y-%m-%d %H:%M:%S UTC')
         else:
-            theTime = datetime.datetime.now()   
             # We don't care, just use current date...           
+            theTime = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC') 
+            
         D.setTime(theTime)
         
     else:
@@ -170,18 +174,19 @@ def readArray2Dfloat(data, typename, rfield, cfield):
     """ Read in a non 2D array from our netcdf data and expand. 
         For the initial project, we will just handle sparse data.
     """    
-    log.info("NUMPY version is {0}".format(numpy.version.version))
+    #log.info("NUMPY version is {0}".format(numpy.version.version))
 
     rows = data.getDimensionSize(rfield)
     cols = data.getDimensionSize(cfield)
     # Humm..need this index I think.  Don't know how to use it properly
     #index = data.getDimensionIndex(typename)
     
-    log.info("Filling in data values "+str(rows)+","+str(cols))
+    #log.info("Filling in data values "+str(rows)+","+str(cols))
     M = numpy.empty((rows,cols), float)
     i = 0
     notify = 0
     totalCells = 0
+    allCells = rows*cols
     log.info("Type name comes in as "+typename)
     values = data.getValueLookup(typename)
     log.info("Type name of values is "+str(type(values)))
@@ -192,8 +197,9 @@ def readArray2Dfloat(data, typename, rfield, cfield):
             notify += 1
             totalCells += 1
             if notify > 10000:
-                log.info("Processed "+str(totalCells))
+                log.info("Processed {0} of {1} data samples.".format(totalCells, allCells))
                 notify = 0
+    log.info("Processed {0} of {1} data samples.".format(totalCells, allCells))
     return M
 
 def readSparseArray2Dfloat(data, typename, rfield, cfield):  
@@ -203,19 +209,18 @@ def readSparseArray2Dfloat(data, typename, rfield, cfield):
     log.info("Background value is "+str(backgroundValue))
     
     num_pixels = data.getDimensionSizeByVariable("pixel_x")
-    log.info("Number of pixels is "+str(num_pixels))
     
     # Try to get the count field, if any.  This will cause an exception if missing.  This is
     # an extra line based compression, since radar data tends to be locally homogeneous
     haveCount = False
     try:
-        count = data.getDimensionSize("pixel_count")
+        count = data.getDimensionSizeByVariable("pixel_count")
         haveCount = True
-    except:
+    except Exception as e:
         # Assume it's not there...
         pass
     
-    log.info("NUMPY version is {0}".format(numpy.version.version))
+    #log.info("NUMPY version is {0}".format(numpy.version.version))
 
     # Bleh, Arcgis 10.2 has numpy 1.7, so we can't fill with background value automatically
     rows = data.getDimensionSize(rfield)
@@ -228,7 +233,7 @@ def readSparseArray2Dfloat(data, typename, rfield, cfield):
     
     # Basically, for sparse array.  We have an 'x' and 'y' that tell position into the array, and
     # a possible 'pixel_count' which is a line of same data value.
-    log.info("Filling in data values")
+    #log.info("Filling in data values")
     actualData = 0
     notify = 0
     totalCells = 0
@@ -250,16 +255,15 @@ def readSparseArray2Dfloat(data, typename, rfield, cfield):
             count = int(data.getValue(pixel_countL, i))
         else:
             count = 1
-            
-        #if value != backgroundValue:
+        #log.info("**************Count is "+str(haveCount))    
         if value > datatype.missingData:
-                M[x, y] = value
-                actualData += 1
+            M[x, y] = value
+            actualData += 1
         totalCells += 1
         notify += 1
         
         if notify > 10000:
-                log.info("Processed "+str(totalCells))
+                log.info("Processed {0} of {1} data samples.".format(totalCells, num_pixels))
                 notify = 0
         # Fill in line strip
         for j in range(1, count, 1):
@@ -267,10 +271,9 @@ def readSparseArray2Dfloat(data, typename, rfield, cfield):
             if y == cols:
                 x += 1   # new row
                 y = 0
-            if value != backgroundValue:
+            if value > datatype.missingData:
                 M[x, y] = value
-                totalCells += 1
                 actualData += 1  
             #print x, y, count, "set to", value
-    log.info( "Actual sample count read in was "+str(actualData))
+    log.info("Processed {0} of {1} data samples.".format(totalCells, num_pixels))
     return M

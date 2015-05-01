@@ -53,16 +53,37 @@ def getTempFile(rootfolder, filename):
     return os.path.join(rootfolder, filename)   
                     
 def getBaseMulti(filename):
+    """ Turn something like 'C:/stuff/test.netcdf.gz' into 'test' """
+    return getAbsBaseMulti(os.path.basename(filename))
+
+def getAbsBaseMulti(filename):
     """ We have files like name.netcdf.gz where there are multiple periods.  So this
         function will get rid of all of them in an OS independent manner.  The regular
-        splitext only handles one period. """
-    filename = os.path.basename(filename)
-    count = 0
-    while count < 4 or "." in filename:
-        count += 1
-        filename = os.path.splitext(filename)[0]
+        splitext only handles one period.  So we call it until it returns the same string
+        Turn something like 'C:/stuff/test.netcdf.gz' into 'C:/stuff/test' """
+    newfilename = os.path.splitext(filename)[0]
+    while newfilename != filename:  # We took at least one '.' off..
+        filename = newfilename
+        newfilename = os.path.splitext(filename)[0]  # Do it until no more periods come off
+    return newfilename
+
+def removeGDBCharacters(filename):
+    """ Remove characters that can't be in a GDB name.  I know that at least '-' must be
+        removed."""
+    filename = filename.replace("-", "_")
     return filename
 
 def getHandledFileTypes():
     """ Get the file types that we can parse """
     return ["netcdf", "nc", "gz"]
+
+def isHandledFileType(filename):
+    """ Return True if given filename ends in one of our handled endings """
+    handled = False
+    for l in getHandledFileTypes():
+        if filename.endswith("."+l):
+            handled = True
+            break
+    return handled
+        
+        

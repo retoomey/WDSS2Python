@@ -17,6 +17,11 @@ class DataType(object):
         self.time = None
         self.typeName = "Unknown"
         self.fileName = "Unknown Filename"
+    
+    def __del__(self): 
+        """ Delete the raster to save memory """
+        if self.hRaster:
+            del self.raster
         
     def getRaster(self):
         """ Get an optional arcpy raster """

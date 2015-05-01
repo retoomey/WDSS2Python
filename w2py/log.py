@@ -90,7 +90,7 @@ def error(text, newline=True):
         command line or with ArcGIS toolbox
     """
     if haveArcpy:
-        arcMessage.addError(text)
+        arcMessage.addErrorMessage(text)
     else:
         sys.stderr.write(text)
         if newline:
