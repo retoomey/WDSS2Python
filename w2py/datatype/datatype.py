@@ -36,12 +36,14 @@ class DataType(object):
         """ Do we have a raster object? """
         return self.hRaster
     
-    def getImageWidth(self, raster):
-        """ Return the image width for this data type (used in HTML and PNG generation) """
+    def getImageWidth(self):
+        """ Return the image width for this data type 
+            (used in HTML and PNG generation) """
         return 500
     
     def getImageHeight(self):
-        """ Return the image height for this data type (used in HTML and PNG generation) """
+        """ Return the image height for this data type 
+            (used in HTML and PNG generation) """
         return 200
     
     def setTime(self, t):

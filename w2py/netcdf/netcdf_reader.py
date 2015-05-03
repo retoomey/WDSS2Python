@@ -1,9 +1,10 @@
 """
 NetcdfReader class file
 
-There are several different Netcdf libraries out there.  ArcGIS has some netcdf reading ability,
-and there is Scientific Python among others.  We use this class as a wrapper to plug in different
-libraries.  I've notice the way ArcGIS reads data is kinda slow for large files..maybe I have
+There are several different Netcdf libraries out there.  ArcGIS has some 
+netcdf reading ability,and there is Scientific Python among others.  We use
+this class as a wrapper to plug in different libraries.  I've notice the way
+ArcGIS reads data is kinda slow for large files..maybe I have
 more to learn about how to use it properly.
 
 @author: Robert Toomey (retoomey)
@@ -19,7 +20,8 @@ class netcdfReader(object):
         self.fileName = None
         
     def getFileLocation(self):
-        """ Get the actual file location.  Can be the original file or a temporary uncompressed file """
+        """ Get the actual file location.  Can be the original file or a 
+            temporary uncompressed file """
         return self.fileName
     
     def setFileLocation(self, f):

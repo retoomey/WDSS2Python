@@ -1,7 +1,8 @@
 """
 Netcdf utilities
 
-Basically, read NSSL netcdf data. Lots of boring stuff here.  The main points are:
+Basically, read NSSL netcdf data. Lots of boring stuff here.  
+The main points are:
     1. Finding our special NetCDF attributes and variables
     3. Reading a NSSL Polar Radial Dataset
        OR reading a NSSL LatLonGrid Dataset
@@ -19,8 +20,9 @@ from w2py.datatype import radialset
 from w2py.datatype import latlongrid
    
 def getDimension(data, dim):
-    """ Read in first element of a netcdf dimension...if there's an exception return False.
-        We have some optional dimension data, this makes the code cleaner
+    """ Read in first element of a netcdf dimension...if there's an
+        exception return False. We have some optional dimension data, this
+        makes the code cleaner
     """
     haveIt = False
     try:
@@ -95,7 +97,8 @@ def readRadialSet(data, isSparse):
         rs.setTypeName(datatype)   
         return rs
     else:
-        log.error("Could not find DataType attribute in Netcdf file.  All NSSL netcdf data files should have this.")
+        log.error("Could not find DataType attribute in Netcdf file.")
+        log.error("All NSSL netcdf data files should have this.")
     return None
 
 def readLatLonGrid(data, isSparse):
@@ -124,8 +127,9 @@ def readLatLonGrid(data, isSparse):
     
 def readNetcdfFile(data): 
     """ Read in a netcdf data file, look for our attributes.
-        Using Arcpy's built in netcdf ability.  This of course relies on the arcpy
-        library.  Could wrap all the netcdf to allow plug-in of SciPy or another library
+        Using Arcpy's built in netcdf ability.  This of course relies on 
+        the arcpy library.  Could wrap all the netcdf to allow plug-in of 
+        SciPy or another library
     """  
     D = None  
     if data.haveAttribute("", "DataType"):

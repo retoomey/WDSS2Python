@@ -1,11 +1,12 @@
 """
 Scientific Python Netcdf Reader class file
 
-This reader uses the Scientific Python library to access a netcdf file.  This isn't installed in
-arcgis python by default, but this class is faster.
+This reader uses the Scientific Python library to access a netcdf file. 
+This isn't installed in arcgis python by default, but this class is faster.
 
 @author: Robert Toomey (retoomey)
 """  
+
 import Scientific.IO.NetCDF
 from w2py import log
 import netcdf_reader
@@ -36,8 +37,9 @@ class sciNetcdfReader(netcdf_reader.netcdfReader):
         else:
             return False
     
-    def __del__(self):
-        # Close our file before calling superclass, since superclass might delete it
+    def __del__(self):       
+        # Close our file before calling superclass, 
+        # since superclass might delete it
         if self.data:
             self.data.close()
         super(type(self), self).__del__()

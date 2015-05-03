@@ -1,9 +1,13 @@
-# Robert Toomey (retoomey)
-# The main library for accessing our datatypes
-#
-# Read custom netcdf data files into ArcGIS using an ArcGIS toolbox python script
-# Design the script to run from ArcGIS, or standalone using sys.args.
-# For now, do lots of work here.  Some of this will migrate/separate later
+'''
+The main script for accessing our datatypes
+
+Read custom netcdf data files into ArcGIS using an ArcGIS toolbox python
+script
+Design the script to run from ArcGIS, or standalone using sys.args.
+For now, do lots of work here.  Some of this will migrate/separate later
+
+@author: Robert Toomey (retoomey)
+'''
 
 # System imports
 import arcpy, os, shutil, time
@@ -207,7 +211,7 @@ def readMultipleFiles(inFolder, outFolder, net, htmlOn=False, symbols=None, hFol
     # and prev/next html link generation a lot easier..
     fileCount = 0
     filelist = []
-    maxFiles = 4  # Allow breaking out after a certain number of files...
+    maxFiles = 10000  # Allow breaking out after a certain number of files...
     for dir, sub, files in os.walk(inFolder):
         for f in files:
             
@@ -290,7 +294,7 @@ def readMultipleFiles(inFolder, outFolder, net, htmlOn=False, symbols=None, hFol
                                        prevFile, nextFile)
                     
                     shortName = os.path.basename(f)
-                    w2html.genHTMLTableContent(outHTMLindex, htmlName, shortName)
+                    w2html.genHTMLListItem(outHTMLindex, htmlName, shortName)
                 
                 # Delete the netcdf and raster files to keep ArcGIS memory getting too big
                 del D

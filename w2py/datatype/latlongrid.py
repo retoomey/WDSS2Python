@@ -55,9 +55,11 @@ class LatLonGrid(datatype.DataType):
         return [self.dlon,self.dlat]
     
     def getImageWidth(self):
-        """ Return the image width for this data type (used in HTML and PNG generation) """
+        """ Return the image width for this data type 
+            (used in HTML and PNG generation) """
         return self.matrix.shape[1]
     
     def getImageHeight(self):
-        """ Return the image height for this data type (used in HTML and PNG generation) """
+        """ Return the image height for this data type 
+            (used in HTML and PNG generation) """
         return self.matrix.shape[0]

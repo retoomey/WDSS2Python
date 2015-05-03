@@ -8,7 +8,6 @@ This reader uses the arcpy NetCDFFileProperties to access a netcdf file
 
 import arcpy
 from w2py import log 
-
 import netcdf_reader
 
 class arcpyNetcdfReader(netcdf_reader.netcdfReader):
@@ -21,7 +20,8 @@ class arcpyNetcdfReader(netcdf_reader.netcdfReader):
         try:
             # We have to uncompress the file to a temporary file
             # This will be deleted on __del__ cleanup
-            datafile = netcdf_reader.netcdfReader.uncompressTempFile(self, datafile)                           
+            datafile = \
+                netcdf_reader.netcdfReader.uncompressTempFile(self, datafile)                           
             self.data  = arcpy.NetCDFFileProperties(datafile)
         except BaseException as e:
             log.error("Couldn't read netcdf data from file "+datafile)
@@ -35,8 +35,9 @@ class arcpyNetcdfReader(netcdf_reader.netcdfReader):
 
             
     def haveDimension(self, dim):
-        """ Read in first element of a netcdf dimension...if there's an exception return False.
-        We have some optional dimension data, this makes the code cleaner
+        """ Read in first element of a netcdf dimension...if there's an 
+            exception return False. We have some optional dimension data, this 
+            makes the code cleaner
         """
         haveIt = False
         try:
